@@ -76,7 +76,7 @@ for counter in number_players[0]:
     count_players1.append([])
     for elem in number_players:
         count_players1[i].append(int(elem[i].replace(' ','')))
-    if i<14:
+    if i< len(count_players1):
         i+=1
 
 xVals=[]

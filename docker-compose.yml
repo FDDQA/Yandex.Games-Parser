@@ -1,0 +1,12 @@
+version: "3"
+services:
+  parser:
+    image: parser
+  mysql:
+    image: mysql:8.0
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=b47b58
+      - MYSQL_DATABASE=parsingdb
+    ports:
+      - '3307:3306'

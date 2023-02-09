@@ -6,10 +6,12 @@ from selenium.webdriver.support import expected_conditions
 import pymysql # для работы с базой
 from config import host, user, password, db_name
 from datetime import datetime # получаем текущую дату
-import pandas # вывод таблицы из MySQL в консоль
 from tqdm import tqdm # прогресс-бар
 import time
 import concurrent.futures
+
+import chromedriver_autoinstaller
+chromedriver_autoinstaller.install()
 
 # подключение к базе
 try:
@@ -101,11 +103,13 @@ for element in tqdm(page_new_games, desc='Parsing', colour='#00ff00'):
     game_cats_list.clear()
     driver.back()
 # создаем две таблицы
-# cursor.execute("create table nameandcat (ID int NOT NULL AUTO_INCREMENT, APP_ID int(10), NAME char(255), CATEGORY VARCHAR(255),  PRIMARY KEY (ID))")
-# cursor.execute("create table dateandplayers (ID int NOT NULL AUTO_INCREMENT, APP_ID int(10), DATE VARCHAR(10), COUNTPLAYERS VARCHAR (255), PRIMARY KEY(ID))")
-
+try:
+    cursor.execute("create table nameandcat (ID int NOT NULL AUTO_INCREMENT, APP_ID int(10), NAME char(255), CATEGORY VARCHAR(255),  PRIMARY KEY (ID), UNIQUE(APP_ID))")
+    cursor.execute("create table dateandplayers (ID int NOT NULL AUTO_INCREMENT, APP_ID int(10), DATE VARCHAR(10), COUNTPLAYERS VARCHAR (255), PRIMARY KEY(ID))")
+except:
+    print("Базы уже созданы")
 # заливаем все данные в таблицы
-cursor.executemany("INSERT INTO nameandcat (app_id, name, category) VALUE (%s,%s,%s)", args_namecat_db)
+cursor.executemany("INSERT IGNORE INTO nameandcat (app_id, name, category) VALUE (%s,%s,%s)", args_namecat_db)
 cursor.executemany("INSERT INTO dateandplayers (app_id, date, countplayers) VALUE (%s,%s,%s)", args_countplayers_db)
 
 # вывод нашей таблицы через Pandas
