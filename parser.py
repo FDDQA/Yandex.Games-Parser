@@ -8,10 +8,6 @@ from config import host, user, password, db_name
 from datetime import datetime # получаем текущую дату
 from tqdm import tqdm # прогресс-бар
 import time
-import concurrent.futures
-
-import chromedriver_autoinstaller
-chromedriver_autoinstaller.install()
 
 # подключение к базе
 try:
@@ -29,20 +25,13 @@ except Exception as ex:
     print("Connect refused :(")
     print(ex)
 
-# очистка таблицы перед работой
 cursor = connection.cursor()
-try:
-    # cursor.execute("DROP TABLE nameandcat")
-    # cursor.execute("DROP TABLE dateandplayers")
-    print("Удалил таблицы nameandcat и dateandplayers")
-except Exception as ex:
-    print("Ошибка удаления!Таблицы отсутствуют")
-    print(ex)
-
 # отключаем GUI, загрузку картинок
 options = Options()
-options.add_argument("--headless=new")
-options.add_argument("--blink-settings=imagesEnabled=false")
+options.add_argument("--headless=new") # включаем headless-mode
+options.add_argument("--blink-settings=imagesEnabled=false") # отключаем картинки
+options.add_argument("--no-sandbox") # параметр для запуска в Linux Docker
+options.add_argument("--disable-dev-shm-usage") # параметр для запуска в Linux Docker
 
 # объявляем драйвер Хрома, грузим страницу с играми, объявляем неявное ожидание загрузки драйвера 2 сек
 driver = webdriver.Chrome(options=options)
@@ -62,8 +51,11 @@ while(match == False):
         match = True
 
 # закрываем рекламу, которая блокирует элементы
-close_ads = driver.find_element(By.CSS_SELECTOR,'.close-button_type_popup-inner')
-close_ads.click()
+try:
+    close_ads = driver.find_element(By.CSS_SELECTOR,'.close-button_type_popup-inner')
+    close_ads.click()
+except:
+    print("Ads not founded")
 
 # собираем все ссылки на игры
 page_new_games = driver.find_elements(By.CSS_SELECTOR, ".game-card__game-info")
@@ -74,11 +66,11 @@ game_cats_list = []
 args_namecat_db = []
 args_countplayers_db = []
 
-today = datetime.today().strftime("%d.%m.%Y")
+today = datetime.today().strftime("%Y-%m-%d")
 
 for element in tqdm(page_new_games, desc='Parsing', colour='#00ff00'):
     element.click()
-    WebDriverWait(driver=driver, timeout=10).until(expected_conditions.presence_of_element_located((By.CSS_SELECTOR,".game-play-button_size_page_icon_desktop.Button2")))
+    WebDriverWait(driver=driver, timeout=10).until(expected_conditions.presence_of_element_located((By.CSS_SELECTOR, ".game-play-button_size_page_icon_desktop.Button2")))
     game_name = driver.find_element(By.CSS_SELECTOR, '.game-page__title').text
     game_cats = driver.find_elements(By.CSS_SELECTOR, '.category__link.games-link')
 
@@ -90,7 +82,8 @@ for element in tqdm(page_new_games, desc='Parsing', colour='#00ff00'):
     game_cats_list.remove('Новые')
 
     # берём количество игроков и стрипаем
-    game_players = driver.find_element(By.CSS_SELECTOR, '.game-number__number-text').text.strip('+ игроков').strip('+ пользователей')
+    game_players =''.join(c for c in (driver.find_element(By.CSS_SELECTOR, '.game-number__number-text').text) if c.isdecimal())
+    print(game_players)
 
     # берём ID игры и стрипаем
     game_id = driver.current_url.strip('https://yandex.ru/games/category/new#app=')
@@ -111,9 +104,6 @@ except:
 # заливаем все данные в таблицы
 cursor.executemany("INSERT IGNORE INTO nameandcat (app_id, name, category) VALUE (%s,%s,%s)", args_namecat_db)
 cursor.executemany("INSERT INTO dateandplayers (app_id, date, countplayers) VALUE (%s,%s,%s)", args_countplayers_db)
-
-# вывод нашей таблицы через Pandas
-# print(pandas.read_sql("SELECT * FROM nameandcat", connection), pandas.read_sql("SELECT * FROM dateandplayers", connection))
 
 # сохранение и закрытие соединения
 connection.commit()

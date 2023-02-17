@@ -1,13 +1,26 @@
 import pymysql
 from config import host, user, password, db_name
 from datetime import datetime, timedelta
-from gpcharts import figure
+import gpcharts
 
-class Game_item:
-    def __init__(self,name,category,date):
+
+class GameItem:
+    def __init__(self, name, category, date):
         self.name = name
         self.category = category
         self.date = date
+
+
+def generate_dates(date):
+    xVals = []
+    i = 0
+    while i < 14:
+        x = (date - timedelta(days=i)).strftime("%Y-%m-%d")
+        xVals.append(x)
+        i += 1
+    xVals.reverse()
+    return xVals
+
 
 # коннектимся к базе
 try:
@@ -33,64 +46,49 @@ cursor.execute("SELECT app_id, name, category  FROM nameandcat")
 nameandcat_db = cursor.fetchall()
 
 # собираем все данные со второй таблицы
-cursor.execute( "SELECT date, countplayers, app_id  FROM dateandplayers")
-dateandplayers_db = cursor.fetchall()
+cursor.execute("SELECT date, countplayers, app_id  FROM dateandplayers")
+dates_players_db = cursor.fetchall()
 
 connection.commit()
 connection.close()
+# дальше уже не трогаем базу
 
-game_list=[]
-arr2=[]
-# перебор элементов массива (первая таблица)
-# for elem in nameandcat_db:
-#     arr1.append(elem['name'])
-#     arr1.append(elem['category'])
-#     arr2.clear()
-#     # перебор элементов массива (вторая таблица)
-#     for dateandcountplayers in dateandplayers_db:
-#         if elem['app_id'] == dateandcountplayers['app_id']:
-#             arr2.append((dateandcountplayers['date'], dateandcountplayers['countplayers']))
-#     arr1.append(arr2)
-
+game_list = []
 for elem in nameandcat_db:
-    game = Game_item(elem['name'],elem['category'],[])
-    dates = []
+    game = GameItem(elem['name'], elem['category'], {})
     # перебор элементов массива (вторая таблица)
-    for dateandcountplayers in dateandplayers_db:
+    for dateandcountplayers in dates_players_db:
         if elem['app_id'] == dateandcountplayers['app_id']:
-            game.date.append((dateandcountplayers['date'], dateandcountplayers['countplayers']))
-
-    #print(game.name,game.category,game.date)
+            game.date[(dateandcountplayers['date'])] = int(dateandcountplayers['countplayers'])
+    if sum(game.date.values()) < 10000:
+        continue
     game_list.append(game)
-names=[]
-number_players=[]
-count_players1=[]
-for elem in game_list:
-    names.append(elem.name)
-    count_players = []
-    for elem1 in elem.date:
-        count_players.append(elem1[1])
-    number_players.append(count_players)
-i=0
-for counter in number_players[0]:
-    count_players1.append([])
-    for elem in number_players:
-        count_players1[i].append(int(elem[i].replace(' ','')))
-    if i< len(count_players1):
-        i+=1
 
-xVals=[]
+# создаем массив под запись количества игроков на 14 дней
+count_players = []
+while 14 != len(count_players):
+    count_players.append([])
 
-i=0
-while i < len(count_players1):
-    x = (datetime.today() - timedelta(days=i)).strftime("%Y-%m-%d")
-    xVals.append(x)
-    i+=1
-xVals.reverse()
-xVals.insert(0,'Dates')
+massiv = generate_dates(datetime.today())
+names = []  # массив только имён
+for game in game_list:  # берём одну игру из массива с играми
+    names.append(game.name)  # запихиваем все имена в массив имён names
 
+i = 13
+while i > -1:
+    for game in game_list:  # берём одну игру из массива с играми
+        if game.date.get((massiv[i])) is None:
+            count_players[i].append(0)
+        elif game.date.get((massiv[i])) > 10000:
+            count_players[i].append((game.date.get(massiv[i])))
+        else:
+            count_players[i].append(0)
+    i -= 1
 
-print("Игр в базе:",len(names))
-fig = figure(title='TEST',height=1080, width=1920)
-yVals=[names,*count_players1]
-fig.plot(xVals,yVals)
+massiv.insert(0, 'Dates')  # вставляем xlabel
+fig = gpcharts.figure(title='Parsing', width=1200, height=600)
+yVals = [names, *count_players]
+print(yVals)
+
+# рисуем
+fig.plot(massiv, yVals)
